@@ -41,6 +41,8 @@ insn(Options) ->
                                 proplists:get_value(opt, Options,
                                                     "priv/opt")),
 
+    Fstab = proplists:get_value(fstab, Options, []),
+
     Suffix = proplists:get_value(host_prefix, Options, "r"),
 
     [
@@ -74,7 +76,7 @@ insn(Options) ->
                                             ms_rdonly
                                            ], <<>>], [{errexit, false}]}] || Dir <- [
                                                                                      "/lib64"
-                                                                                    ]],
+                                                                                    ] ++ Fstab],
 
     {prx, mount, [Opt, [Root, "/opt"], "", [ms_bind], <<>>], [{errexit, false}]},
     {prx, mount, [Opt, [Root, "/opt"], "", [

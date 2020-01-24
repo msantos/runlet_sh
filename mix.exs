@@ -4,7 +4,7 @@ defmodule RunletSh.Mixfile do
   def project do
     [
       app: :runlet_sh,
-      version: "1.0.0",
+      version: "1.1.0",
       elixir: "~> 1.9",
       build_embedded: Mix.env() == :prod,
       start_permanent: Mix.env() == :prod,
@@ -40,7 +40,7 @@ defmodule RunletSh.Mixfile do
   defp deps do
     [
       {:prx, git: "https://github.com/msantos/prx.git", manager: :rebar3},
-      {:runlet, git: "git@gitlab.com:michael.santos/runlet.git"},
+      {:runlet, gitub: "msantos/runlet"},
       {:credo, "~> 0.9.1", only: [:dev, :test], runtime: false}
     ]
   end
