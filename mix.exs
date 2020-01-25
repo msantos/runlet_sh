@@ -10,6 +10,7 @@ defmodule RunletSh.Mixfile do
       start_permanent: Mix.env() == :prod,
       description: "Generate runlets from containerized Unix processes",
       deps: deps(),
+      package: package(),
       dialyzer: [
         plt_add_deps: :transitive,
         ignore_warnings: "dialyzer.ignore-warnings",
@@ -39,9 +40,17 @@ defmodule RunletSh.Mixfile do
   # Type "mix help deps" for more examples and options
   defp deps do
     [
-      {:prx, git: "https://github.com/msantos/prx.git", manager: :rebar3},
-      {:runlet, gitub: "msantos/runlet"},
-      {:credo, "~> 0.9.1", only: [:dev, :test], runtime: false}
+      {:prx, "~> 0.10.0"},
+      {:runlet, "~> 1.0", only: [:dev, :test], runtime: false},
+      {:ex_doc, ">= 0.0.0", only: :dev, runtime: false}
+    ]
+  end
+
+  defp package do
+    [
+      maintainers: ["Michael Santos"],
+      licenses: ["ISC"],
+      links: %{github: "https://github.com/msantos/runlet_sh"}
     ]
   end
 end
