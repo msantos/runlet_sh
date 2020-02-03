@@ -41,7 +41,7 @@ defmodule RunletSh.Mixfile do
   defp deps do
     [
       {:prx, "~> 0.10.0"},
-      {:runlet, "~> 1.0", only: [:dev, :test], runtime: false},
+      {:runlet, "~> 1.0"},
       {:ex_doc, ">= 0.0.0", only: :dev, runtime: false}
     ]
   end
