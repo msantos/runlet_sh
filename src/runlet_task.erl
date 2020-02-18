@@ -9,6 +9,8 @@
 %%====================================================================
 %% API functions
 %%====================================================================
+-spec start_link(prx:task(), proplists:proplist()) ->
+  {ok, prx:task()} | {error, prx:posix()}.
 start_link(Task, Options) ->
     true = prx:call(Task, setopt, [signaloneof, 9]),
     Init = fun(Parent) -> prx:clone(Parent, [
@@ -29,6 +31,7 @@ start_link(Task, Options) ->
 
     prx:task(Task, Insn, [], [{init, Init}, {terminate, Terminate}]).
 
+-spec insn(proplists:proplist()) -> [prx_task:op()|[prx_task:op()]].
 insn(Options) ->
     Id = erlang:phash2(self(), 16#ffff) + 16#f0000000,
 
