@@ -102,13 +102,33 @@ defmodule Runlet.Cmd.Sh do
             :ok = :prx.stdin(sh, stdin)
             {[], state}
 
-          {:runlet_signal, signal} ->
-            {[
-               %Runlet.Event{
-                 query: cmd,
-                 event: %Runlet.Event.Signal{description: signal}
-               }
-             ], state}
+          # Forward signal to container process group
+          {:runlet_signal, sig} ->
+            case :prx.pidof(sh) do
+              :noproc ->
+                Kernel.send(self(), :runlet_exit)
+
+                {[
+                   %Runlet.Event{
+                     query: cmd,
+                     event: %Runlet.Event.Signal{
+                       description: "#{sig}: {:error, :esrch}"
+                     }
+                   }
+                 ], state}
+
+              pid ->
+                retval = :prx.kill(sh, pid * -1, String.to_atom(sig))
+
+                {[
+                   %Runlet.Event{
+                     query: cmd,
+                     event: %Runlet.Event.Signal{
+                       description: "#{sig}: #{inspect(retval)}"
+                     }
+                   }
+                 ], state}
+            end
 
           :runlet_exit ->
             {:halt, state}
