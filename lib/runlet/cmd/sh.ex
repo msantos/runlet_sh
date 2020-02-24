@@ -118,7 +118,7 @@ defmodule Runlet.Cmd.Sh do
                  ], state}
 
               pid ->
-                retval = :prx.kill(sh, pid * -1, String.to_atom(sig))
+                retval = :prx.kill(sh, pid * -1, to_signal(sig))
 
                 {[
                    %Runlet.Event{
@@ -356,4 +356,32 @@ defmodule Runlet.Cmd.Sh do
         Enum.reverse(x)
     end
   end
+
+  @spec to_signal(String.t()) ::
+          :SIGCONT
+          | :SIGHUP
+          | :SIGINT
+          | :SIGKILL
+          | :SIGQUIT
+          | :SIGSTOP
+          | :SIGSTOP
+          | :SIGTERM
+          | :SIGUSR1
+          | :SIGUSR2
+          | :SIGPWR
+          | 0
+  defp to_signal(<<"SIG", sig::binary>>), do: to_signal(String.downcase(sig))
+  defp to_signal(<<"sig", sig::binary>>), do: to_signal(sig)
+  defp to_signal("cont"), do: :SIGCONT
+  defp to_signal("hup"), do: :SIGHUP
+  defp to_signal("int"), do: :SIGINT
+  defp to_signal("kill"), do: :SIGKILL
+  defp to_signal("quit"), do: :SIGQUIT
+  defp to_signal("stop"), do: :SIGSTOP
+  defp to_signal("stp"), do: :SIGSTOP
+  defp to_signal("term"), do: :SIGTERM
+  defp to_signal("usr1"), do: :SIGUSR1
+  defp to_signal("usr2"), do: :SIGUSR2
+  defp to_signal("pwr"), do: :SIGPWR
+  defp to_signal(_), do: 0
 end
