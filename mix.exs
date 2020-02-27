@@ -44,6 +44,7 @@ defmodule RunletSh.Mixfile do
       {:prx, "~> 0.10.0"},
       {:runlet, "~> 1.0"},
       {:dialyxir, "~> 1.0.0-rc.7", only: [:dev], runtime: false},
+      {:credo, "~> 1.2", only: [:dev, :test], runtime: false},
       {:ex_doc, ">= 0.0.0", only: :dev, runtime: false}
     ]
   end
