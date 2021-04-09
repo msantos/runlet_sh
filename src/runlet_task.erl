@@ -56,11 +56,11 @@ insn(Options) ->
 
     Fstab = proplists:get_value(fstab, Options, []),
 
-    Suffix = proplists:get_value(host_prefix, Options, "r"),
+    Prefix = proplists:get_value(host_prefix, Options, "r"),
 
     [
         {setsid, []},
-        {sethostname, [lists:concat([Suffix, Id])]},
+        {sethostname, [lists:concat([Prefix, Id])]},
         {setpriority, [
             proplists:get_value(which, Options, prio_process),
             proplists:get_value(who, Options, 0),
