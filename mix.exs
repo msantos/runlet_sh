@@ -44,7 +44,7 @@ defmodule RunletSh.Mixfile do
       {:alcove, "~> 0.36.0"},
       {:prx, "~> 0.14.1"},
       {:runlet, github: "msantos/runlet"},
-      {:dialyxir, "~> 1.0.0-rc.7", only: [:dev], runtime: false},
+      {:dialyxir, "~> 1.0", only: [:dev], runtime: false},
       {:credo, "~> 1.2", only: [:dev, :test], runtime: false},
       {:ex_doc, ">= 0.0.0", only: :dev, runtime: false}
     ]

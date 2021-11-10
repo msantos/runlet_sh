@@ -35,13 +35,7 @@ defmodule Runlet.Cmd.Sh do
       } = state ->
         receive do
           {:stdout, ^sh, stdout} ->
-            case Process.alive?(sh) do
-              true ->
-                :prx.setcpid(sh, :flowcontrol, 1)
-
-              false ->
-                :ok
-            end
+            :prx.setcpid(sh, :flowcontrol, 1)
 
             {[
                %Runlet.Event{
@@ -54,13 +48,7 @@ defmodule Runlet.Cmd.Sh do
              ], state}
 
           {:stderr, ^sh, stderr} ->
-            case Process.alive?(sh) do
-              true ->
-                :prx.setcpid(sh, :flowcontrol, 1)
-
-              false ->
-                :ok
-            end
+            :prx.setcpid(sh, :flowcontrol, 1)
 
             {[
                %Runlet.Event{
@@ -284,13 +272,7 @@ defmodule Runlet.Cmd.Sh do
         ])
 
       {:stdout, ^sh, stdout} ->
-        case Process.alive?(sh) do
-          true ->
-            :prx.setcpid(sh, :flowcontrol, 1)
-
-          false ->
-            :ok
-        end
+        :prx.setcpid(sh, :flowcontrol, 1)
 
         event(sh, cmd, [
           %Runlet.Event{
@@ -304,13 +286,7 @@ defmodule Runlet.Cmd.Sh do
         ])
 
       {:stderr, ^sh, stderr} ->
-        case Process.alive?(sh) do
-          true ->
-            :prx.setcpid(sh, :flowcontrol, 1)
-
-          false ->
-            :ok
-        end
+        :prx.setcpid(sh, :flowcontrol, 1)
 
         event(sh, cmd, [
           %Runlet.Event{
