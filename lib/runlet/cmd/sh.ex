@@ -212,6 +212,7 @@ defmodule Runlet.Cmd.Sh do
   @spec fork(binary) :: {:ok, t} | {:error, atom}
   defp fork(cmd) do
     root = Runlet.Config.get(:runlet, :root, "priv/root")
+    env = Runlet.Config.get(:runlet, :env, @env)
     exec = Runlet.Config.get(:runlet, :exec, "") |> to_charlist()
 
     fstab =
@@ -224,7 +225,7 @@ defmodule Runlet.Cmd.Sh do
     with {:ok, task} <- :prx.fork(),
          {:ok, sh} <- :runlet_task.start_link(task, root: root, fstab: fstab),
          true <- :prx.setcpid(sh, :flowcontrol, 1),
-         :ok <- :prx.execve(sh, ["/bin/sh", "-c", cmd], @env) do
+         :ok <- :prx.execve(sh, ["/bin/sh", "-c", cmd], env) do
       {:ok,
        %Runlet.Cmd.Sh{
          task: task,
