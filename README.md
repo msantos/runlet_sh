@@ -12,3 +12,13 @@ def deps do
   [{:runlet_sh, git: "https://github.com/msantos/runlet_sh.git"}]
 end
 ```
+
+## Test
+
+### Create chroot
+
+```
+mkdir -p priv/root/bin priv/root/sbin \
+   priv/root/usr priv/root/lib priv/root/lib64 \
+   priv/root/opt priv/root/tmp priv/root/home priv/root/proc
+```
