@@ -33,7 +33,7 @@ start_link(Task, Options) ->
 
 -spec insn(proplists:proplist()) -> [prx_task:op() | [prx_task:op()]].
 insn(Options) ->
-    Id = erlang:phash2(self(), 16#ffff) + 16#f0000000,
+    Id = proplists:get_value(uid, Options, erlang:phash2(self(), 16#ffff) + 16#f0000000),
 
     {ok, Cwd} = file:get_cwd(),
 

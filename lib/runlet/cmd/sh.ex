@@ -215,6 +215,15 @@ defmodule Runlet.Cmd.Sh do
     env = Runlet.Config.get(:runlet, :env, @env)
     exec = Runlet.Config.get(:runlet, :exec, "") |> to_charlist()
 
+    uidmin = Runlet.Config.get(:runlet, :uidmin, 0xF0000000)
+
+    uidfun =
+      Runlet.Config.get(:runlet, :uidfun, fn uidmin ->
+        :erlang.phash2(self(), 0xFFFF) + uidmin
+      end)
+
+    uid = uidfun.(uidmin)
+
     fstab =
       Runlet.Config.get(:runlet, :fstab, [])
       |> Enum.reject(fn t -> t == "" end)
@@ -223,7 +232,12 @@ defmodule Runlet.Cmd.Sh do
     _ = :prx.sudo(exec)
 
     with {:ok, task} <- :prx.fork(),
-         {:ok, sh} <- :runlet_task.start_link(task, root: root, fstab: fstab),
+         {:ok, sh} <-
+           :runlet_task.start_link(task,
+             root: root,
+             fstab: fstab,
+             uid: uid
+           ),
          true <- :prx.setcpid(sh, :flowcontrol, 1),
          :ok <- :prx.execve(sh, ["/bin/sh", "-c", cmd], env) do
       {:ok,
