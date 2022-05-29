@@ -69,6 +69,10 @@ insn(Options) ->
 
         {mount, ["none", "/", <<>>, [ms_rec, ms_private], <<>>]},
 
+        % pivot_root(2) requires `new_root` to be a mount point. Bind
+        % mount the root directory over itself to create a mount point.
+        {mount, [Root, Root, <<>>, [ms_bind], <<>>]},
+
         [
             [
                 {mount, [Dir, [Root, Dir], "", [ms_bind], <<>>]},
@@ -177,9 +181,11 @@ insn(Options) ->
             <<>>
         ]},
 
+        {chdir, [Root]},
+        {pivot_root, [".", "."]},
+        {umount2, [".", [mnt_detach]]},
         {chdir, ["/"]},
-        {chroot, [Root]},
-        {chdir, ["/"]},
+
         [
             {setrlimit, [Resource, Rlim]}
          || {Resource, Rlim} <- proplists:get_value(
