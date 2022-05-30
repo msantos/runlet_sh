@@ -15,11 +15,13 @@ end
 
 ## Configuration
 
+### UID/GID
+
 The UID/GID of the containerized processes is selected from one of
 65535 UIDs beginning from 0xF0000000. Systems may limit the maximum UID:
 setting a UID above the limit will fail with `{:error, :einval}`.
 
-### config/config.exs: Set Minimum UID
+#### config/config.exs: Set Minimum UID
 
 To set a lower UID offset:
 
@@ -40,6 +42,12 @@ config :runlet,
 ```
 
 ## Test
+
+### Privileges
+
+```
+youruser ALL = NOPASSWD: /path/to/runlet_sh/deps/prx/priv/prx
+```
 
 ### Create chroot
 
