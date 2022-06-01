@@ -54,4 +54,57 @@ defmodule RunletShTest do
 
     Application.delete_env(:runlet, :uidfun)
   end
+
+  test "pipe: send events to process stdin" do
+    # http://127.0.0.1:8080/event/index?query=
+    case System.fetch_env("RUNLET_QUERY_TEST_SERVER") do
+      {:error, _} ->
+        {:ok, skip: true}
+
+      {:ok, ""} ->
+        {:ok, skip: true}
+
+      {:ok, server} ->
+        uri = URI.parse(server)
+
+        Application.put_env(:runlet, :riemann_host, uri.host)
+        Application.put_env(:runlet, :riemann_port, "#{uri.port}")
+
+        Application.put_env(
+          :runlet,
+          :riemann_url,
+          URI.to_string(%URI{path: uri.path, query: uri.query})
+        )
+
+        # "state = \"expired\""
+        query =
+          "service ~= \"riemann\""
+          |> Runlet.Cmd.Query.exec()
+          |> Runlet.Cmd.Sh.exec("cat")
+          |> Enum.take(1)
+
+        assert [%Runlet.Event{}] = query
+    end
+  end
+
+  test "pipe: send process stdout to process stdin" do
+    result =
+      Runlet.Cmd.Sh.exec("while :; do echo test; sleep 1; done")
+      |> Runlet.Cmd.Sh.exec("cat")
+      |> Enum.take(1)
+
+    assert [
+             %Runlet.Event{
+               attr: %{},
+               event: %Runlet.Event.Stdout{
+                 description:
+                   "{\"query\":\"while :; do echo test; sleep 1; done\",\"event\":{\"time\":\"\",\"service\":\"\",\"host\":\"\",\"description\":\"test\\n\"},\"attr\":{}}\n",
+                 host: "",
+                 service: "",
+                 time: ""
+               },
+               query: "cat"
+             }
+           ] = result
+  end
 end

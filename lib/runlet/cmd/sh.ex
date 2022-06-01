@@ -90,6 +90,14 @@ defmodule Runlet.Cmd.Sh do
             :ok = :prx.stdin(sh, stdin)
             {[], state}
 
+          {:runlet_signal, "SIGALRM"} ->
+            {[
+               %Runlet.Event{
+                 query: cmd,
+                 event: %Runlet.Event.Signal{description: "SIGALRM"}
+               }
+             ], state}
+
           # Forward signal to container process group
           {:runlet_signal, sig} ->
             case :prx.pidof(sh) do
