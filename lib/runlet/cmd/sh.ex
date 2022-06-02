@@ -3,11 +3,13 @@ defmodule Runlet.Cmd.Sh do
 
   defstruct task: nil,
             sh: nil,
+            stream_pid: nil,
             err: nil
 
   @type t :: %__MODULE__{
           task: pid | nil,
           sh: pid | nil,
+          stream_pid: pid | nil,
           err: atom | nil
         }
 
@@ -30,6 +32,7 @@ defmodule Runlet.Cmd.Sh do
 
     resourcefun = fn
       %Runlet.Cmd.Sh{
+        task: task,
         sh: sh,
         err: nil
       } = state ->
@@ -90,14 +93,6 @@ defmodule Runlet.Cmd.Sh do
             :ok = :prx.stdin(sh, stdin)
             {[], state}
 
-          {:runlet_signal, "SIGALRM"} ->
-            {[
-               %Runlet.Event{
-                 query: cmd,
-                 event: %Runlet.Event.Signal{description: "SIGALRM"}
-               }
-             ], state}
-
           # Forward signal to container process group
           {:runlet_signal, sig} ->
             case :prx.pidof(sh) do
@@ -114,7 +109,7 @@ defmodule Runlet.Cmd.Sh do
                  ], state}
 
               pid ->
-                retval = :prx.kill(sh, pid * -1, to_signal(sig))
+                retval = :prx.kill(task, pid * -1, to_signal(sig))
 
                 {[
                    %Runlet.Event{
@@ -159,60 +154,148 @@ defmodule Runlet.Cmd.Sh do
     )
   end
 
-  @doc false
-  @spec exec(Enumerable.t(), binary) :: Enumerable.t()
-  def exec(stream, cmd) do
+  @spec stream_to_pid(Enumerable.t(), pid) :: Enumerable.t()
+  defp stream_to_pid(stream, pid) do
     startfun = fn ->
-      case fork(cmd) do
-        {:ok, state} -> state
-        {:error, error} -> %Runlet.Cmd.Sh{err: error}
-      end
+      :ok
     end
 
     transformfun = fn
-      %Runlet.Event{event: %Runlet.Event.Signal{}},
+      %Runlet.Event{} = e, state ->
+        Kernel.send(pid, e)
+
+        receive do
+          :ok ->
+            {[], state}
+
+          :halt ->
+            {:halt, state}
+        end
+
+      _, state ->
+        {[], state}
+    end
+
+    endfun = fn _state ->
+      Kernel.send(pid, {:runlet_signal, "SIGTERM"})
+      Kernel.send(pid, :runlet_exit)
+      Process.unlink(pid)
+    end
+
+    Stream.transform(
+      stream,
+      startfun,
+      transformfun,
+      endfun
+    )
+  end
+
+  @doc false
+  @spec exec(Enumerable.t(), binary) :: Enumerable.t()
+  def exec(stream, cmd) do
+    streamfun = fn pid ->
+      fn ->
+        stream
+        |> stream_to_pid(pid)
+        |> Stream.run()
+      end
+    end
+
+    startfun = fn ->
+      case fork(cmd) do
+        {:ok, state} ->
+          stream_pid = Kernel.spawn_link(streamfun.(self()))
+          %{state | stream_pid: stream_pid}
+
+        {:error, error} ->
+          %Runlet.Cmd.Sh{err: error}
+      end
+    end
+
+    resourcefun = fn
       %Runlet.Cmd.Sh{
+        task: task,
         sh: sh,
+        stream_pid: stream_pid,
         err: nil
       } = state ->
-        {event(sh, cmd), state}
+        receive do
+          {:stdout, ^sh, stdout} ->
+            :prx.setcpid(sh, :flowcontrol, 1)
 
-      %Runlet.Event{event: %Runlet.Event.Signal{}}, %Runlet.Cmd.Sh{} = state ->
+            {[
+               %Runlet.Event{
+                 query: cmd,
+                 event: %Runlet.Event.Stdout{
+                   service: "",
+                   description: stdout
+                 }
+               }
+             ], state}
+
+          {:stderr, ^sh, stderr} ->
+            :prx.setcpid(sh, :flowcontrol, 1)
+
+            {[
+               %Runlet.Event{
+                 query: cmd,
+                 event: %Runlet.Event.Stdout{
+                   service: "stderr",
+                   description: stderr
+                 }
+               }
+             ], state}
+
+          {:signal, _, _, _} ->
+            {[], state}
+
+          # Forward signal to container process group
+          {:runlet_signal, sig} ->
+            case :prx.pidof(sh) do
+              :noproc ->
+                {:halt, state}
+
+              pid ->
+                _ = :prx.kill(task, pid * -1, to_signal(sig))
+                {[], state}
+            end
+
+          %Runlet.Event{event: %Runlet.Event.Signal{}} = e ->
+            Kernel.send(stream_pid, :ok)
+            {[e], state}
+
+          %Runlet.Event{} = e ->
+            :ok = :prx.stdin(sh, "#{Poison.encode!(e)}\n")
+            Kernel.send(stream_pid, :ok)
+            {[], state}
+
+          {:exit_status, ^sh, _status} ->
+            {:halt, state}
+
+          {:termsig, ^sh, _sig} ->
+            {:halt, state}
+
+          :runlet_exit ->
+            {[], state}
+        end
+
+      %Runlet.Cmd.Sh{} = state ->
         {:halt, state}
-
-      %Runlet.Event{} = e,
-      %Runlet.Cmd.Sh{
-        sh: sh,
-        err: nil
-      } = state ->
-        :ok = :prx.stdin(sh, "#{Poison.encode!(e)}\n")
-        {event(sh, cmd), state}
-
-      %Runlet.Event{},
-      %Runlet.Cmd.Sh{
-        err: err
-      } = state ->
-        {[
-           %Runlet.Event{
-             query: cmd,
-             event: %Runlet.Event.Stdout{
-               service: "stderr",
-               description: "error: #{err}"
-             }
-           }
-         ], state}
     end
 
     endfun = fn %Runlet.Cmd.Sh{
-                  task: task
+                  task: task,
+                  stream_pid: stream_pid
                 } ->
+      Process.unlink(stream_pid)
+      Kernel.send(stream_pid, :halt)
+      Process.exit(stream_pid, :kill)
       atexit(task)
     end
 
-    stream
-    |> Stream.transform(
+    Stream.resource(
       startfun,
-      transformfun,
+      resourcefun,
       endfun
     )
   end
@@ -273,87 +356,6 @@ defmodule Runlet.Cmd.Sh do
       end)
 
     :prx.stop(task)
-  end
-
-  @spec event(pid, binary) :: Enumerable.t()
-  defp event(sh, cmd), do: event(sh, cmd, [])
-
-  defp event(sh, cmd, x) do
-    receive do
-      {:stdin, {:error, {:eagain, _}}} ->
-        Kernel.send(self(), :runlet_exit)
-
-        Enum.reverse([
-          %Runlet.Event{
-            query: cmd,
-            event: %Runlet.Event.Stdout{
-              service: "termsig",
-              description: "sigpipe"
-            }
-          }
-          | x
-        ])
-
-      {:stdout, ^sh, stdout} ->
-        :prx.setcpid(sh, :flowcontrol, 1)
-
-        event(sh, cmd, [
-          %Runlet.Event{
-            query: cmd,
-            event: %Runlet.Event.Stdout{
-              service: "",
-              description: stdout
-            }
-          }
-          | x
-        ])
-
-      {:stderr, ^sh, stderr} ->
-        :prx.setcpid(sh, :flowcontrol, 1)
-
-        event(sh, cmd, [
-          %Runlet.Event{
-            query: cmd,
-            event: %Runlet.Event.Stdout{
-              service: "stderr",
-              description: stderr
-            }
-          }
-          | x
-        ])
-
-      {:exit_status, ^sh, status} ->
-        Kernel.send(self(), :runlet_exit)
-
-        event(sh, cmd, [
-          %Runlet.Event{
-            query: cmd,
-            event: %Runlet.Event.Stdout{
-              service: "exit_status",
-              description: "#{status}"
-            }
-          }
-          | x
-        ])
-
-      {:termsig, ^sh, sig} ->
-        Kernel.send(self(), :runlet_exit)
-
-        event(sh, cmd, [
-          %Runlet.Event{
-            query: cmd,
-            event: %Runlet.Event.Stdout{
-              service: "termsig",
-              description: "#{sig}"
-            }
-          }
-          | x
-        ])
-    after
-      0 ->
-        _ = :timer.send_after(1_000, {:runlet_signal, "SIGALRM"})
-        Enum.reverse(x)
-    end
   end
 
   @spec to_signal(String.t()) ::

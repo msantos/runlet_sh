@@ -1,3 +1,4 @@
+# credo:disable-for-this-file Credo.Check.Readability.LargeNumbers
 defmodule RunletShTest do
   use ExUnit.Case
   use Bitwise
@@ -106,5 +107,48 @@ defmodule RunletShTest do
                query: "cat"
              }
            ] = result
+  end
+
+  test "pipe: enumerable to process stdin" do
+    e = %Runlet.Event{
+      event: %Runlet.Event.Stdout{
+        service: "service",
+        host: "host",
+        description: "test"
+      }
+    }
+
+    result = [e, e, e] |> Runlet.Cmd.Sh.exec("cat") |> Enum.to_list()
+
+    # events may be merged into 1 event
+    assert [
+             %Runlet.Event{
+               attr: %{},
+               event: %Runlet.Event.Stdout{
+                 description:
+                   <<"{\"query\":\"\",\"event\":{\"time\":\"\",\"service\":\"service\",\"host\":\"host\",\"description\":\"test\"},\"attr\":{}}\n",
+                     _::binary>>,
+                 host: "",
+                 service: "",
+                 time: ""
+               },
+               query: "cat"
+             }
+             | _
+           ] = result
+
+    assert [
+             %Runlet.Event{
+               attr: %{},
+               event: %Runlet.Event.Stdout{
+                 description: "Terminated\n",
+                 host: "",
+                 service: "stderr",
+                 time: ""
+               },
+               query: "cat"
+             }
+             | _
+           ] = Enum.reverse(result)
   end
 end
