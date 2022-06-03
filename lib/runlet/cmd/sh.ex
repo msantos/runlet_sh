@@ -177,8 +177,7 @@ defmodule Runlet.Cmd.Sh do
     end
 
     endfun = fn _state ->
-      Kernel.send(pid, {:runlet_signal, "SIGTERM"})
-      Kernel.send(pid, :runlet_exit)
+      Kernel.send(pid, :runlet_eof)
       Process.unlink(pid)
     end
 
@@ -220,6 +219,15 @@ defmodule Runlet.Cmd.Sh do
         err: nil
       } = state ->
         receive do
+          :runlet_eof ->
+            case :prx.eof(task, sh) do
+              :ok ->
+                {[], state}
+
+              {:error, _} ->
+                {:halt, state}
+            end
+
           {:stdout, ^sh, stdout} ->
             :prx.setcpid(sh, :flowcontrol, 1)
 
@@ -247,6 +255,10 @@ defmodule Runlet.Cmd.Sh do
              ], state}
 
           {:signal, _, _, _} ->
+            {[], state}
+
+          # Discard stdin not originating from the stream
+          {:runlet_stdin, _} ->
             {[], state}
 
           # Forward signal to container process group

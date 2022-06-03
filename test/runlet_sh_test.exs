@@ -136,19 +136,5 @@ defmodule RunletShTest do
              }
              | _
            ] = result
-
-    assert [
-             %Runlet.Event{
-               attr: %{},
-               event: %Runlet.Event.Stdout{
-                 description: "Terminated\n",
-                 host: "",
-                 service: "stderr",
-                 time: ""
-               },
-               query: "cat"
-             }
-             | _
-           ] = Enum.reverse(result)
   end
 end
