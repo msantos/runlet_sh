@@ -72,6 +72,20 @@ insn(Options) ->
         % pivot_root(2) requires `new_root` to be a mount point. Bind
         % mount the root directory over itself to create a mount point.
         {mount, [Root, Root, <<>>, [ms_bind], <<>>]},
+        {prx, mount,
+            [
+                Root,
+                Root,
+                <<>>,
+                [
+                    ms_remount,
+                    ms_bind,
+                    ms_rdonly,
+                    ms_nosuid
+                ],
+                <<>>
+            ],
+            [{errexit, false}]},
 
         [
             [

@@ -137,4 +137,36 @@ defmodule RunletShTest do
              | _
            ] = result
   end
+
+  test "mount: verify mount flags" do
+    [e | _] = Runlet.Cmd.Sh.exec("mount") |> Enum.to_list()
+
+    # [
+    #   ["/dev/vdb", "on", "/", "type", "btrfs",
+    #    "(ro,nosuid,relatime,discard,space_cache,user_subvol_rm_allowed,subvolid=425,subvol=/lxd/storage-pools/default/containers/test)"]
+    # ]
+    flags =
+      e.event.description
+      # split mount output into lines
+      |> String.split("\n")
+      # and each line into words
+      |> Enum.map(fn x -> x |> String.split() end)
+      # select the root directory mount point
+      |> Enum.filter(fn x -> "/" == x |> Enum.at(2) end)
+      # flatten to list from list of lists
+      |> List.first()
+      # mount flags are the last element of the list
+      |> List.last()
+      # split up the mount flags
+      |> String.split([",", "(", ")"], trim: true)
+      # select the mount flags being tested
+      |> Enum.filter(fn
+        "ro" -> true
+        "nosuid" -> true
+        _ -> false
+      end)
+      |> Enum.sort()
+
+    assert ["nosuid", "ro"] = flags
+  end
 end
