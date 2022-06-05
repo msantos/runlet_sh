@@ -16,6 +16,13 @@ defmodule RunletShTest do
         # binary is setuid
         :ok
     end
+
+    root = Runlet.Config.get(:runlet, :root, "priv/root")
+    ["bin", "sbin", "usr", "lib", "lib64", "opt", "tmp", "home", "proc"]
+    |> Enum.map(fn dir -> Path.join(root, dir) end)
+    |> Enum.map(fn path -> File.mkdir_p!(path) end)
+
+    :ok
   end
 
   test "sh: exec process writing to stdout" do

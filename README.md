@@ -12,6 +12,13 @@ def deps do
   [{:runlet_sh, github: "msantos/runlet_sh"}]
 end
 ```
+### Create Container Root Filesystem
+
+```
+mkdir -p priv/root/bin priv/root/sbin \
+   priv/root/usr priv/root/lib priv/root/lib64 \
+   priv/root/opt priv/root/tmp priv/root/home priv/root/proc
+```
 
 ## Configuration
 
@@ -47,12 +54,4 @@ config :runlet,
 
 ```
 youruser ALL = NOPASSWD: /path/to/runlet_sh/deps/prx/priv/prx
-```
-
-### Create chroot
-
-```
-mkdir -p priv/root/bin priv/root/sbin \
-   priv/root/usr priv/root/lib priv/root/lib64 \
-   priv/root/opt priv/root/tmp priv/root/home priv/root/proc
 ```
