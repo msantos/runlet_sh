@@ -98,27 +98,11 @@ defmodule Runlet.Cmd.Sh do
             case :prx.pidof(sh) do
               :noproc ->
                 Kernel.send(self(), :runlet_exit)
-
-                {[
-                   %Runlet.Event{
-                     query: cmd,
-                     event: %Runlet.Event.Signal{
-                       description: "#{sig}: {:error, :esrch}"
-                     }
-                   }
-                 ], state}
+                {:halt, state}
 
               pid ->
-                retval = :prx.kill(task, pid * -1, to_signal(sig))
-
-                {[
-                   %Runlet.Event{
-                     query: cmd,
-                     event: %Runlet.Event.Signal{
-                       description: "#{sig}: #{inspect(retval)}"
-                     }
-                   }
-                 ], state}
+                _ = :prx.kill(task, pid * -1, to_signal(sig))
+                {[], state}
             end
 
           :runlet_exit ->
@@ -295,14 +279,21 @@ defmodule Runlet.Cmd.Sh do
         {:halt, state}
     end
 
-    endfun = fn %Runlet.Cmd.Sh{
-                  task: task,
-                  stream_pid: stream_pid
-                } ->
-      Process.unlink(stream_pid)
-      Kernel.send(stream_pid, :halt)
-      Process.exit(stream_pid, :kill)
-      atexit(task)
+    endfun = fn
+      %Runlet.Cmd.Sh{
+        task: task,
+        stream_pid: nil
+      } ->
+        atexit(task)
+
+      %Runlet.Cmd.Sh{
+        task: task,
+        stream_pid: stream_pid
+      } ->
+        Process.unlink(stream_pid)
+        Kernel.send(stream_pid, :halt)
+        Process.exit(stream_pid, :kill)
+        atexit(task)
     end
 
     Stream.resource(
@@ -356,16 +347,16 @@ defmodule Runlet.Cmd.Sh do
   end
 
   defp atexit(task) do
-    _ =
-      Enum.map(:prx.cpid(task), fn %{pid: pid} ->
-        case :prx.kill(task, pid * -1, :SIGKILL) do
-          {:error, :esrch} ->
-            :prx.kill(task, pid, :SIGKILL)
+    :prx.cpid(task)
+    |> Enum.each(fn %{pid: pid} ->
+      case :prx.kill(task, pid * -1, :SIGKILL) do
+        {:error, :esrch} ->
+          :prx.kill(task, pid, :SIGKILL)
 
-          _ ->
-            :ok
-        end
-      end)
+        _ ->
+          :ok
+      end
+    end)
 
     :prx.stop(task)
   end

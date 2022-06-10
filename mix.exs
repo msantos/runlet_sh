@@ -14,7 +14,7 @@ defmodule RunletSh.Mixfile do
       dialyzer: [
         list_unused_filters: true,
         flags: [
-          "-Wunmatched_returns",
+          :unmatched_returns,
           :error_handling,
           :race_conditions,
           :underspecs
