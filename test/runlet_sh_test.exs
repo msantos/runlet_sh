@@ -18,6 +18,7 @@ defmodule RunletShTest do
     end
 
     root = Runlet.Config.get(:runlet, :root, "priv/root")
+
     ["bin", "sbin", "usr", "lib", "lib64", "opt", "tmp", "home", "proc"]
     |> Enum.map(fn dir -> Path.join(root, dir) end)
     |> Enum.map(fn path -> File.mkdir_p!(path) end)
@@ -140,6 +141,52 @@ defmodule RunletShTest do
                  time: ""
                },
                query: "cat"
+             }
+             | _
+           ] = result
+  end
+
+  test "pipe: pipe buffer full" do
+    e = %Runlet.Event{
+      event: %Runlet.Event.Stdout{
+        service: "service",
+        host: "host",
+        description: "test"
+      }
+    }
+
+    # Send stdin to a command that does not read standard
+    # input. Writes to the process stdin will eventually fail
+    # with EAGAIN.
+    #
+    # byte_size(Poison.encode!(e)) + 1 (\n) = 98 bytes
+    # 98 * 1000 = 98000 bytes
+    #
+    # See pipe(7):
+    #
+    # In  Linux  versions before 2.6.11, the capacity of a pipe was the
+    # same as the system page size (e.g., 4096 bytes on i386).  Since Linux
+    # 2.6.11, the pipe capacity is 16 pages (i.e., 65,536 bytes in a system
+    # with a page size of 4096 bytes).  Since Linux 2.6.35, the default pipe
+    # capacity  is  16 pages, but the capacity can be queried and set using
+    # the fcntl(2) F_GETPIPE_SZ and F_SETPIPE_SZ operations.  See fcntl(2)
+    # for more information.
+    result =
+      Stream.cycle([e])
+      |> Stream.take(1000)
+      |> Runlet.Cmd.Sh.exec("sleep 900")
+      |> Enum.to_list()
+
+    assert [
+             %Runlet.Event{
+               attr: %{},
+               event: %Runlet.Event.Stdout{
+                 description: "{:error, {:eagain, 0}}",
+                 host: "",
+                 service: "stderr",
+                 time: ""
+               },
+               query: "sleep 900"
              }
              | _
            ] = result

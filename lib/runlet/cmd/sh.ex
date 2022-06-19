@@ -63,6 +63,21 @@ defmodule Runlet.Cmd.Sh do
                }
              ], state}
 
+          # writes to stdin are asynchronous: errors are returned
+          # as messages
+          {:stdin, ^task, error} ->
+            Kernel.send(self(), :runlet_exit)
+
+            {[
+               %Runlet.Event{
+                 query: cmd,
+                 event: %Runlet.Event.Stdout{
+                   service: "stderr",
+                   description: "#{inspect(error)}"
+                 }
+               }
+             ], state}
+
           {:exit_status, ^sh, status} ->
             Kernel.send(self(), :runlet_exit)
 
@@ -238,6 +253,21 @@ defmodule Runlet.Cmd.Sh do
                }
              ], state}
 
+          # writes to stdin are asynchronous: errors are returned
+          # as messages
+          {:stdin, ^sh, error} ->
+            Kernel.send(self(), :runlet_exit)
+
+            {[
+               %Runlet.Event{
+                 query: cmd,
+                 event: %Runlet.Event.Stdout{
+                   service: "stderr",
+                   description: "#{inspect(error)}"
+                 }
+               }
+             ], state}
+
           {:signal, _, _, _} ->
             {[], state}
 
@@ -272,7 +302,7 @@ defmodule Runlet.Cmd.Sh do
             {:halt, state}
 
           :runlet_exit ->
-            {[], state}
+            {:halt, state}
         end
 
       %Runlet.Cmd.Sh{} = state ->
