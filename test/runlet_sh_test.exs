@@ -187,8 +187,17 @@ defmodule RunletShTest do
                  time: ""
                },
                query: "sleep 900"
+             },
+             %Runlet.Event{
+               attr: %{},
+               event: %Runlet.Event.Stdout{
+                 description: "sigkill",
+                 host: "",
+                 service: "termsig",
+                 time: ""
+               },
+               query: "sleep 900"
              }
-             | _
            ] = result
   end
 

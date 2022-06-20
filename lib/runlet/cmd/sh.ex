@@ -4,12 +4,16 @@ defmodule Runlet.Cmd.Sh do
   defstruct task: nil,
             sh: nil,
             stream_pid: nil,
+            status: :running,
+            flush_timeout: 0,
             err: nil
 
   @type t :: %__MODULE__{
           task: pid | nil,
           sh: pid | nil,
           stream_pid: pid | nil,
+          status: :running | :flush | :flushing,
+          flush_timeout: 0 | :infinity,
           err: atom | nil
         }
 
@@ -30,115 +34,7 @@ defmodule Runlet.Cmd.Sh do
       end
     end
 
-    resourcefun = fn
-      %Runlet.Cmd.Sh{
-        task: task,
-        sh: sh,
-        err: nil
-      } = state ->
-        receive do
-          {:stdout, ^sh, stdout} ->
-            :prx.setcpid(sh, :flowcontrol, 1)
-
-            {[
-               %Runlet.Event{
-                 query: cmd,
-                 event: %Runlet.Event.Stdout{
-                   service: "",
-                   description: stdout
-                 }
-               }
-             ], state}
-
-          {:stderr, ^sh, stderr} ->
-            :prx.setcpid(sh, :flowcontrol, 1)
-
-            {[
-               %Runlet.Event{
-                 query: cmd,
-                 event: %Runlet.Event.Stdout{
-                   service: "stderr",
-                   description: stderr
-                 }
-               }
-             ], state}
-
-          # writes to stdin are asynchronous: errors are returned
-          # as messages
-          {:stdin, ^task, error} ->
-            Kernel.send(self(), :runlet_exit)
-
-            {[
-               %Runlet.Event{
-                 query: cmd,
-                 event: %Runlet.Event.Stdout{
-                   service: "stderr",
-                   description: "#{inspect(error)}"
-                 }
-               }
-             ], state}
-
-          {:exit_status, ^sh, status} ->
-            Kernel.send(self(), :runlet_exit)
-
-            {[
-               %Runlet.Event{
-                 query: cmd,
-                 event: %Runlet.Event.Stdout{
-                   service: "exit_status",
-                   description: "#{status}"
-                 }
-               }
-             ], state}
-
-          {:termsig, ^sh, sig} ->
-            Kernel.send(self(), :runlet_exit)
-
-            {[
-               %Runlet.Event{
-                 query: cmd,
-                 event: %Runlet.Event.Stdout{
-                   service: "termsig",
-                   description: "#{sig}"
-                 }
-               }
-             ], state}
-
-          {:runlet_stdin, stdin} ->
-            :ok = :prx.stdin(sh, stdin)
-            {[], state}
-
-          # Forward signal to container process group
-          {:runlet_signal, sig} ->
-            case :prx.pidof(sh) do
-              :noproc ->
-                Kernel.send(self(), :runlet_exit)
-                {:halt, state}
-
-              pid ->
-                _ = :prx.kill(task, pid * -1, to_signal(sig))
-                {[], state}
-            end
-
-          :runlet_exit ->
-            {:halt, state}
-        end
-
-      %Runlet.Cmd.Sh{
-        err: err
-      } = state ->
-        Kernel.send(self(), :runlet_exit)
-
-        {[
-           %Runlet.Event{
-             query: cmd,
-             event: %Runlet.Event.Stdout{
-               service: "stderr",
-               description: "error: #{err}"
-             }
-           }
-         ], %{state | err: nil}}
-    end
+    resourcefun = fn state -> stdio(cmd, state) end
 
     endfun = fn %Runlet.Cmd.Sh{
                   task: task
@@ -210,104 +106,7 @@ defmodule Runlet.Cmd.Sh do
       end
     end
 
-    resourcefun = fn
-      %Runlet.Cmd.Sh{
-        task: task,
-        sh: sh,
-        stream_pid: stream_pid,
-        err: nil
-      } = state ->
-        receive do
-          :runlet_eof ->
-            case :prx.eof(task, sh) do
-              :ok ->
-                {[], state}
-
-              {:error, _} ->
-                {:halt, state}
-            end
-
-          {:stdout, ^sh, stdout} ->
-            :prx.setcpid(sh, :flowcontrol, 1)
-
-            {[
-               %Runlet.Event{
-                 query: cmd,
-                 event: %Runlet.Event.Stdout{
-                   service: "",
-                   description: stdout
-                 }
-               }
-             ], state}
-
-          {:stderr, ^sh, stderr} ->
-            :prx.setcpid(sh, :flowcontrol, 1)
-
-            {[
-               %Runlet.Event{
-                 query: cmd,
-                 event: %Runlet.Event.Stdout{
-                   service: "stderr",
-                   description: stderr
-                 }
-               }
-             ], state}
-
-          # writes to stdin are asynchronous: errors are returned
-          # as messages
-          {:stdin, ^sh, error} ->
-            Kernel.send(self(), :runlet_exit)
-
-            {[
-               %Runlet.Event{
-                 query: cmd,
-                 event: %Runlet.Event.Stdout{
-                   service: "stderr",
-                   description: "#{inspect(error)}"
-                 }
-               }
-             ], state}
-
-          {:signal, _, _, _} ->
-            {[], state}
-
-          # Discard stdin not originating from the stream
-          {:runlet_stdin, _} ->
-            {[], state}
-
-          # Forward signal to container process group
-          {:runlet_signal, sig} ->
-            case :prx.pidof(sh) do
-              :noproc ->
-                {:halt, state}
-
-              pid ->
-                _ = :prx.kill(task, pid * -1, to_signal(sig))
-                {[], state}
-            end
-
-          %Runlet.Event{event: %Runlet.Event.Signal{}} = e ->
-            Kernel.send(stream_pid, :ok)
-            {[e], state}
-
-          %Runlet.Event{} = e ->
-            :ok = :prx.stdin(sh, "#{Poison.encode!(e)}\n")
-            Kernel.send(stream_pid, :ok)
-            {[], state}
-
-          {:exit_status, ^sh, _status} ->
-            {:halt, state}
-
-          {:termsig, ^sh, _sig} ->
-            {:halt, state}
-
-          :runlet_exit ->
-            {:halt, state}
-        end
-
-      %Runlet.Cmd.Sh{} = state ->
-        {:halt, state}
-    end
+    resourcefun = fn state -> stdio(cmd, state) end
 
     endfun = fn
       %Runlet.Cmd.Sh{
@@ -331,6 +130,252 @@ defmodule Runlet.Cmd.Sh do
       resourcefun,
       endfun
     )
+  end
+
+  defp stdio(
+         cmd,
+         %Runlet.Cmd.Sh{
+           task: task,
+           sh: sh,
+           stream_pid: stream_pid,
+           status: :running,
+           err: nil
+         } = state
+       ) do
+    receive do
+      :runlet_eof ->
+        case :prx.eof(task, sh) do
+          :ok ->
+            {[], state}
+
+          # subprocess already exited
+          {:error, :esrch} ->
+            {[], state}
+
+          {:error, _} ->
+            {:halt, state}
+        end
+
+      {:stdout, ^sh, stdout} ->
+        :prx.setcpid(sh, :flowcontrol, 1)
+
+        {[
+           %Runlet.Event{
+             query: cmd,
+             event: %Runlet.Event.Stdout{
+               service: "",
+               description: stdout
+             }
+           }
+         ], state}
+
+      {:stderr, ^sh, stderr} ->
+        :prx.setcpid(sh, :flowcontrol, 1)
+
+        {[
+           %Runlet.Event{
+             query: cmd,
+             event: %Runlet.Event.Stdout{
+               service: "stderr",
+               description: stderr
+             }
+           }
+         ], state}
+
+      # writes to stdin are asynchronous: errors are returned
+      # as messages
+      {:stdin, ^sh, error} ->
+        {[
+           %Runlet.Event{
+             query: cmd,
+             event: %Runlet.Event.Stdout{
+               service: "stderr",
+               description: "#{inspect(error)}"
+             }
+           }
+         ], %{state | status: :flush}}
+
+      {:signal, _, _, _} ->
+        {[], state}
+
+      # Discard if reading stdin from a stream
+      {:runlet_stdin, stdin} ->
+        :ok =
+          case state.stream_pid do
+            nil -> :prx.stdin(sh, stdin)
+            _ -> :ok
+          end
+
+        {[], state}
+
+      # Forward signal to container process group
+      {:runlet_signal, sig} ->
+        case :prx.pidof(sh) do
+          :noproc ->
+            {:halt, state}
+
+          pid ->
+            _ = :prx.kill(task, pid * -1, to_signal(sig))
+            {[], state}
+        end
+
+      %Runlet.Event{event: %Runlet.Event.Signal{}} = e ->
+        Kernel.send(stream_pid, :ok)
+        {[e], state}
+
+      %Runlet.Event{} = e ->
+        :ok = :prx.stdin(sh, "#{Poison.encode!(e)}\n")
+        Kernel.send(stream_pid, :ok)
+        {[], state}
+
+      {:exit_status, ^sh, status} ->
+        {[
+           %Runlet.Event{
+             query: cmd,
+             event: %Runlet.Event.Stdout{
+               service: "exit_status",
+               description: "#{status}"
+             }
+           }
+         ], %{state | status: :flush}}
+
+      {:termsig, ^sh, sig} ->
+        {[
+           %Runlet.Event{
+             query: cmd,
+             event: %Runlet.Event.Stdout{
+               service: "termsig",
+               description: "#{sig}"
+             }
+           }
+         ], %{state | status: :flush}}
+    end
+  end
+
+  defp stdio(_cmd, %Runlet.Cmd.Sh{status: :running} = state), do: {:halt, state}
+
+  defp stdio(
+         cmd,
+         %Runlet.Cmd.Sh{
+           task: task,
+           sh: sh,
+           stream_pid: nil,
+           status: :flush
+         } = state
+       ) do
+    flush_timeout =
+      case :prx.pidof(sh) do
+        :noproc ->
+          0
+
+        pid ->
+          _ =
+            case :prx.kill(task, pid * -1, :SIGKILL) do
+              {:error, :esrch} ->
+                :prx.kill(task, pid, :SIGKILL)
+
+              _ ->
+                :ok
+            end
+
+          :infinity
+      end
+
+    stdio(cmd, %{state | status: :flushing, flush_timeout: flush_timeout})
+  end
+
+  defp stdio(
+         cmd,
+         %Runlet.Cmd.Sh{
+           stream_pid: stream_pid,
+           status: :flush
+         } = state
+       ) do
+    Process.unlink(stream_pid)
+    Kernel.send(stream_pid, :halt)
+    Process.exit(stream_pid, :kill)
+
+    stdio(cmd, %{state | stream_pid: nil})
+  end
+
+  defp stdio(
+         cmd,
+         %Runlet.Cmd.Sh{
+           sh: sh,
+           stream_pid: nil,
+           status: :flushing,
+           flush_timeout: flush_timeout
+         } = state
+       ) do
+    receive do
+      :runlet_eof ->
+        {[], state}
+
+      {:stdout, ^sh, stdout} ->
+        {[
+           %Runlet.Event{
+             query: cmd,
+             event: %Runlet.Event.Stdout{
+               service: "",
+               description: stdout
+             }
+           }
+         ], state}
+
+      {:stderr, ^sh, stderr} ->
+        {[
+           %Runlet.Event{
+             query: cmd,
+             event: %Runlet.Event.Stdout{
+               service: "stderr",
+               description: stderr
+             }
+           }
+         ], state}
+
+      {:stdin, ^sh, _} ->
+        {[], state}
+
+      {:signal, _, _, _} ->
+        {[], state}
+
+      {:runlet_stdin, _} ->
+        {[], state}
+
+      {:runlet_signal, _} ->
+        {[], state}
+
+      %Runlet.Event{event: %Runlet.Event.Signal{}} = e ->
+        {[e], state}
+
+      %Runlet.Event{} ->
+        {[], state}
+
+      {:exit_status, ^sh, status} ->
+        {[
+           %Runlet.Event{
+             query: cmd,
+             event: %Runlet.Event.Stdout{
+               service: "exit_status",
+               description: "#{status}"
+             }
+           }
+         ], %{state | flush_timeout: 0}}
+
+      {:termsig, ^sh, sig} ->
+        {[
+           %Runlet.Event{
+             query: cmd,
+             event: %Runlet.Event.Stdout{
+               service: "termsig",
+               description: "#{sig}"
+             }
+           }
+         ], %{state | flush_timeout: 0}}
+    after
+      flush_timeout ->
+        {:halt, state}
+    end
   end
 
   @spec fork(binary) :: {:ok, t} | {:error, atom}
