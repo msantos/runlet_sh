@@ -401,13 +401,29 @@ defmodule Runlet.Cmd.Sh do
     _ = :prx.sudo(exec)
 
     with {:ok, task} <- :prx.fork(),
+         _ = :prx.setopt(task, :signaloneof, 9),
+         :ok <-
+           :prx.filter(
+             task,
+             {:allow,
+              [
+                :clone,
+                :close,
+                :exit,
+                :fork,
+                :getpid,
+                :kill,
+                :setcpid
+              ]},
+             []
+           ),
          {:ok, sh} <-
            :runlet_task.start_link(task,
              root: root,
              fstab: fstab,
              uid: uid
            ),
-         true <- :prx.setcpid(sh, :flowcontrol, 1),
+         _ = :prx.setcpid(sh, :flowcontrol, 1),
          :ok <- :prx.execve(sh, ["/bin/sh", "-c", cmd], env) do
       {:ok,
        %Runlet.Cmd.Sh{
@@ -422,17 +438,6 @@ defmodule Runlet.Cmd.Sh do
   end
 
   defp atexit(task) do
-    :prx.cpid(task)
-    |> Enum.each(fn %{pid: pid} ->
-      case :prx.kill(task, pid * -1, :SIGKILL) do
-        {:error, :esrch} ->
-          :prx.kill(task, pid, :SIGKILL)
-
-        _ ->
-          :ok
-      end
-    end)
-
     :prx.stop(task)
   end
 

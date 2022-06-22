@@ -11,7 +11,6 @@
 %%====================================================================
 -spec start_link(prx:task(), proplists:proplist()) -> {ok, prx:task()} | {error, prx:posix()}.
 start_link(Task, Options) ->
-    true = prx:call(Task, setopt, [signaloneof, 9]),
     Init = fun(Parent) ->
         prx:clone(Parent, [
             clone_newipc,
@@ -62,8 +61,8 @@ insn(Options) ->
         {setsid, []},
         {sethostname, [lists:concat([Prefix, Id])]},
         {setpriority, [
-            proplists:get_value(which, Options, prio_process),
-            proplists:get_value(who, Options, 0),
+            prio_process,
+            0,
             proplists:get_value(prio, Options, 19)
         ]},
 
