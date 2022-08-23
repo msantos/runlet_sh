@@ -4,7 +4,7 @@ defmodule RunletSh.Mixfile do
   def project do
     [
       app: :runlet_sh,
-      version: "1.2.3",
+      version: "1.2.4",
       elixir: "~> 1.9",
       build_embedded: Mix.env() == :prod,
       start_permanent: Mix.env() == :prod,
@@ -25,12 +25,13 @@ defmodule RunletSh.Mixfile do
 
   defp deps do
     [
-      {:alcove, "~> 0.38.0"},
-      {:prx, github: "msantos/prx"},
+      {:alcove, "~> 0.40.4"},
+      {:prx, "~> 0.16.3"},
       {:runlet, github: "msantos/runlet"},
       {:credo, "~> 1.6", only: [:dev, :test], runtime: false},
       {:dialyxir, "~> 1.1", only: [:dev], runtime: false},
-      {:ex_doc, "~> 0.28", only: :dev, runtime: false}
+      {:ex_doc, "~> 0.28", only: :dev, runtime: false},
+      {:gradient, github: "esl/gradient", only: [:dev], runtime: false}
     ]
   end
 

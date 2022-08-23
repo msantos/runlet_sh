@@ -21,9 +21,13 @@ start_link(Task, Options) ->
     end,
 
     Terminate = fun(Parent, Child) ->
-        Session = prx:pidof(Child) * -1,
-        prx:stop(Child),
-        prx:kill(Parent, Session, sigkill)
+        case prx:pidof(Child) of
+            noproc ->
+                ok;
+            Session ->
+                prx:stop(Child),
+                prx:kill(Parent, -Session, sigkill)
+        end
     end,
 
     Insn = insn(Options),

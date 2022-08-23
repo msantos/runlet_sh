@@ -62,9 +62,6 @@ defmodule Runlet.Cmd.Sh do
         receive do
           :ok ->
             {[], state}
-
-          :halt ->
-            {:halt, state}
         end
 
       _, state ->
@@ -120,7 +117,6 @@ defmodule Runlet.Cmd.Sh do
         stream_pid: stream_pid
       } ->
         Process.unlink(stream_pid)
-        Kernel.send(stream_pid, :halt)
         Process.exit(stream_pid, :kill)
         atexit(task)
     end
@@ -215,7 +211,7 @@ defmodule Runlet.Cmd.Sh do
             {:halt, state}
 
           pid ->
-            _ = :prx.kill(task, pid * -1, to_signal(sig))
+            _ = :prx.kill(task, -pid, to_signal(sig))
             {[], state}
         end
 
@@ -270,7 +266,7 @@ defmodule Runlet.Cmd.Sh do
 
         pid ->
           _ =
-            case :prx.kill(task, pid * -1, :SIGKILL) do
+            case :prx.kill(task, -pid, :SIGKILL) do
               {:error, :esrch} ->
                 :prx.kill(task, pid, :SIGKILL)
 
@@ -292,7 +288,6 @@ defmodule Runlet.Cmd.Sh do
          } = state
        ) do
     Process.unlink(stream_pid)
-    Kernel.send(stream_pid, :halt)
     Process.exit(stream_pid, :kill)
 
     stdio(cmd, %{state | stream_pid: nil})
@@ -382,7 +377,7 @@ defmodule Runlet.Cmd.Sh do
   defp fork(cmd) do
     root = Runlet.Config.get(:runlet, :root, "priv/root")
     env = Runlet.Config.get(:runlet, :env, @env)
-    exec = Runlet.Config.get(:runlet, :exec, "") |> to_charlist()
+    exec = Runlet.Config.get(:runlet, :exec, "")
 
     uidmin = Runlet.Config.get(:runlet, :uidmin, 0xF0000000)
 
@@ -402,6 +397,7 @@ defmodule Runlet.Cmd.Sh do
 
     with {:ok, task} <- :prx.fork(),
          _ = :prx.setopt(task, :signaloneof, 9),
+         _ = :prx.setopt(task, :flowcontrol, 1),
          :ok <-
            :prx.filter(
              task,
@@ -423,7 +419,6 @@ defmodule Runlet.Cmd.Sh do
              fstab: fstab,
              uid: uid
            ),
-         _ = :prx.setcpid(sh, :flowcontrol, 1),
          :ok <- :prx.execve(sh, ["/bin/sh", "-c", cmd], env) do
       {:ok,
        %Runlet.Cmd.Sh{
