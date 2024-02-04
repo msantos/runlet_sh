@@ -202,6 +202,7 @@ insn(Options) ->
         {pivot_root, [".", "."]},
         {umount2, [".", [mnt_detach]]},
         {chdir, ["/"]},
+        {getcwd, []},
 
         [
             {setrlimit, [Resource, Rlim]}
