@@ -4,7 +4,7 @@ defmodule RunletSh.Mixfile do
   def project do
     [
       app: :runlet_sh,
-      version: "1.2.5",
+      version: "1.2.6",
       elixir: "~> 1.9",
       build_embedded: Mix.env() == :prod,
       start_permanent: Mix.env() == :prod,
