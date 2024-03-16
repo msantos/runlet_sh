@@ -1,5 +1,8 @@
 # RunletSh
 
+[![Package Version](https://img.shields.io/hexpm/v/runlet_sh)](https://hex.pm/packages/runlet_sh)
+[![Hex Docs](https://img.shields.io/badge/hex-docs)](https://hexdocs.pm/runlet_sh/)
+
 Generate [runlets](https://github.com/msantos/runlet) from containerized
 Unix processes.
 
