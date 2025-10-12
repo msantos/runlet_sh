@@ -25,8 +25,8 @@ defmodule RunletSh.Mixfile do
 
   defp deps do
     [
-      {:alcove, "~> 0.40.4"},
-      {:prx, "~> 0.16.3"},
+      {:alcove, "~> 1.0.0"},
+      {:prx, "~> 1.0.0"},
       {:runlet, "~> 1.2"},
       {:credo, "~> 1.6", only: [:dev, :test], runtime: false},
       {:dialyxir, "~> 1.1", only: [:dev], runtime: false},
