@@ -1,7 +1,7 @@
 # credo:disable-for-this-file Credo.Check.Readability.LargeNumbers
 defmodule RunletShTest do
   use ExUnit.Case
-  use Bitwise
+  import Bitwise
   doctest Runlet.Cmd.Sh
 
   setup_all do
@@ -67,7 +67,7 @@ defmodule RunletShTest do
   test "pipe: send events to process stdin" do
     # http://127.0.0.1:8080/event/index?query=
     case System.fetch_env("RUNLET_QUERY_TEST_SERVER") do
-      {:error, _} ->
+      :error ->
         {:ok, skip: true}
 
       {:ok, ""} ->
@@ -102,19 +102,25 @@ defmodule RunletShTest do
       |> Runlet.Cmd.Sh.exec("cat")
       |> Enum.take(1)
 
-    assert [
-             %Runlet.Event{
-               attr: %{},
-               event: %Runlet.Event.Stdout{
-                 description:
-                   "{\"query\":\"while :; do echo test; sleep 1; done\",\"event\":{\"time\":\"\",\"service\":\"\",\"host\":\"\",\"description\":\"test\\n\"},\"attr\":{}}\n",
-                 host: "",
-                 service: "",
-                 time: ""
-               },
-               query: "cat"
-             }
-           ] = result
+    [e] = result
+    j = JSON.decode!(e.event.description)
+
+    # [
+    #         %Runlet.Event{
+    #           event: %Runlet.Event.Stdout{
+    #             host: "",
+    #             service: "",
+    #             description:
+    #               "{\"event\":{\"service\":\"\",\"description\":\"test\\n\",\"host\":\"\",\"time\":\"\"},\"attr\":{},\"query\":\"while :; do echo test; sleep 1; done\"}\n",
+    #             time: ""
+    #           },
+    #           query: "cat",
+    #           attr: %{}
+    #         }
+    # ]
+    assert "cat" = e.query
+    assert "test\n" = j["event"]["description"]
+    assert "while :; do echo test; sleep 1; done" = j["query"]
   end
 
   test "pipe: enumerable to process stdin" do
@@ -128,22 +134,28 @@ defmodule RunletShTest do
 
     result = [e, e, e] |> Runlet.Cmd.Sh.exec("cat") |> Enum.to_list()
 
+    [e|_] = result
+    [s|_] = String.split(e.event.description, "\n", parts: 2, trim: true)
+    j = JSON.decode!(s)
+
     # events may be merged into 1 event
-    assert [
-             %Runlet.Event{
-               attr: %{},
-               event: %Runlet.Event.Stdout{
-                 description:
-                   <<"{\"query\":\"\",\"event\":{\"time\":\"\",\"service\":\"service\",\"host\":\"host\",\"description\":\"test\"},\"attr\":{}}\n",
-                     _::binary>>,
-                 host: "",
-                 service: "",
-                 time: ""
-               },
-               query: "cat"
-             }
-             | _
-           ] = result
+    # [
+    #          %Runlet.Event{
+    #            attr: %{},
+    #            event: %Runlet.Event.Stdout{
+    #              description:
+    #                <<"{\"query\":\"\",\"event\":{\"time\":\"\",\"service\":\"service\",\"host\":\"host\",\"description\":\"test\"},\"attr\":{}}\n",
+    #                  _::binary>>,
+    #              host: "",
+    #              service: "",
+    #              time: ""
+    #            },
+    #            query: "cat"
+    #          }
+    #          | _
+    # ]
+    assert "cat" = e.query
+    assert "test" = j["event"]["description"]
   end
 
   test "pipe: pipe buffer full" do
