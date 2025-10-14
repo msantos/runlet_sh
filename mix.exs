@@ -1,16 +1,19 @@
 defmodule RunletSh.Mixfile do
   use Mix.Project
 
+  @version "1.2.9"
+
   def project do
     [
       app: :runlet_sh,
-      version: "1.2.8",
+      version: @version,
       elixir: "~> 1.9",
       build_embedded: Mix.env() == :prod,
       start_permanent: Mix.env() == :prod,
-      description: "Generate runlets from containerized Unix processes",
       deps: deps(),
+      docs: docs(),
       package: package(),
+      description: "Generate runlets from containerized Unix processes",
       dialyzer: [
         list_unused_filters: true,
         flags: [
@@ -18,7 +21,20 @@ defmodule RunletSh.Mixfile do
           :error_handling,
           :underspecs
         ]
-      ]
+      ],
+      name: "runlet_sh",
+      source_url: "https://github.com/msantos/runlet_sh",
+      homepage_url: "https://github.com/msantos/runlet_sh"
+    ]
+  end
+
+  defp docs do
+    [
+      source_ref: "v#{@version}",
+      extras: [
+        "README.md": [title: "Overview"]
+      ],
+      main: "readme"
     ]
   end
 
